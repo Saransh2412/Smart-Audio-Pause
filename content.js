@@ -10,16 +10,38 @@ let lastHandledUrl = window.location.href;
 // Function to attach to a video element
 function attachToVideo(video) {
   if (currentVideo === video) return;
+  
+  // Clean up previous video if exists
+  if (currentVideo) {
+    detachFromVideo();
+  }
+  
   currentVideo = video;
   console.log("Video element attached:", video);
 
+  // Only attach event listener if feature is active
+  if (isActive) {
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+  }
+}
+
+// Detach from current video
+function detachFromVideo() {
+  if (!currentVideo) return;
+  
+  // Make sure we don't leave video paused when detaching
+  if (pausedByExtension && currentVideo.paused) {
+    currentVideo.play().catch(() => {});
+  }
+  
+  pausedByExtension = false;
   document.removeEventListener("visibilitychange", handleVisibilityChange);
-  document.addEventListener("visibilitychange", handleVisibilityChange);
+  currentVideo = null;
 }
 
 // Handle visibility changes (tab switching)
 function handleVisibilityChange() {
-  if (!currentVideo) return;
+  if (!currentVideo || !isActive) return;
 
   if (document.hidden) {
     if (!currentVideo.paused) {
@@ -71,11 +93,19 @@ function initAutoPause() {
   
   // Setup URL observer for SPAs like YouTube
   setupUrlObserver();
+  
+  // If video is already attached, add visibility listener
+  if (currentVideo) {
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+  }
 }
 
 // Watch for URL changes in single-page applications
 function setupUrlObserver() {
-  if (urlObserver) return;
+  if (urlObserver) {
+    urlObserver.disconnect();
+    urlObserver = null;
+  }
   
   // Create an observer instance to monitor URL changes
   urlObserver = new MutationObserver(() => {
@@ -85,7 +115,9 @@ function setupUrlObserver() {
       
       // Give the page time to update its content
       setTimeout(() => {
-        checkForVideos();
+        if (isActive) {
+          checkForVideos();
+        }
       }, 1000);
     }
   });
@@ -97,23 +129,26 @@ function setupUrlObserver() {
   });
   
   // Also listen for history changes (pushState/replaceState)
-  const originalPushState = history.pushState;
-  const originalReplaceState = history.replaceState;
+  if (!window.autopauseOriginalPushState) {
+    window.autopauseOriginalPushState = history.pushState;
+    history.pushState = function() {
+      window.autopauseOriginalPushState.apply(this, arguments);
+      if (isActive) onUrlChange();
+    };
+  }
   
-  history.pushState = function() {
-    originalPushState.apply(this, arguments);
-    onUrlChange();
-  };
-  
-  history.replaceState = function() {
-    originalReplaceState.apply(this, arguments);
-    onUrlChange();
-  };
+  if (!window.autopauseOriginalReplaceState) {
+    window.autopauseOriginalReplaceState = history.replaceState;
+    history.replaceState = function() {
+      window.autopauseOriginalReplaceState.apply(this, arguments);
+      if (isActive) onUrlChange();
+    };
+  }
   
   window.addEventListener('popstate', onUrlChange);
   
   function onUrlChange() {
-    if (window.location.href !== lastHandledUrl) {
+    if (window.location.href !== lastHandledUrl && isActive) {
       console.log("History change from", lastHandledUrl, "to", window.location.href);
       lastHandledUrl = window.location.href;
       setTimeout(() => {
@@ -123,8 +158,25 @@ function setupUrlObserver() {
   }
 }
 
+// Cleanup history methods
+function cleanupHistoryMethods() {
+  if (window.autopauseOriginalPushState) {
+    history.pushState = window.autopauseOriginalPushState;
+    window.autopauseOriginalPushState = null;
+  }
+  
+  if (window.autopauseOriginalReplaceState) {
+    history.replaceState = window.autopauseOriginalReplaceState;
+    window.autopauseOriginalReplaceState = null;
+  }
+  
+  window.removeEventListener('popstate', onUrlChange);
+}
+
 // Actively check for videos on the page
 function checkForVideos() {
+  if (!isActive) return false;
+  
   const videos = document.querySelectorAll("video");
   if (videos.length > 0) {
     attachToVideo(videos[0]);
@@ -134,6 +186,11 @@ function checkForVideos() {
   // If no video found immediately, keep checking for a short while
   let attempts = 0;
   const interval = setInterval(() => {
+    if (!isActive) {
+      clearInterval(interval);
+      return;
+    }
+    
     const videos = document.querySelectorAll("video");
     if (videos.length > 0) {
       attachToVideo(videos[0]);
@@ -155,6 +212,7 @@ function cleanupAutoPause() {
   if (!isActive) return;
   
   isActive = false;
+  console.log("Auto-pause disabled for URL:", window.location.href);
   
   if (observer) {
     observer.disconnect();
@@ -166,12 +224,11 @@ function cleanupAutoPause() {
     urlObserver = null;
   }
   
-  if (currentVideo) {
-    pausedByExtension = false;
-  }
+  // Clean up history method overrides
+  cleanupHistoryMethods();
   
-  currentVideo = null;
-  document.removeEventListener("visibilitychange", handleVisibilityChange);
+  // Detach from video
+  detachFromVideo();
 }
 
 // Check if we should enable for this URL
@@ -208,8 +265,14 @@ function initialize() {
   checkCurrentUrl();
   
   // Check periodically for videos that might load after a delay
-  setTimeout(checkForVideos, 2000);
-  setTimeout(checkForVideos, 5000);
+  // Only if feature is active
+  setTimeout(() => {
+    if (isActive) checkForVideos();
+  }, 2000);
+  
+  setTimeout(() => {
+    if (isActive) checkForVideos();
+  }, 5000);
 }
 
 // Start as soon as possible
