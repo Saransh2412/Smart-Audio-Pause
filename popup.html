@@ -4,26 +4,24 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Smart Video Pause</title>
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="popup.css" />
 </head>
 <body>
-  <div class="container">
-    <h2>Smart Video Pause</h2>
+  <h2>Smart Video Pause</h2>
 
-    <p id="domainName" class="domain">Loading current site...</p>
+  <div class="domain" id="domainName">Loading current page...</div>
 
-    <div>
-        <h2>Smart Video Pause</h2>
-        <p id="domainName"></p>
-        <label>
-          <input type="checkbox" id="urlToggle" />
-          Pause for this URL
-        </label>
-      </div>
-      
-      
+  <div class="toggle-row">
+    <span>Enable for this page:</span>
+    <label class="toggle">
+      <input type="checkbox" id="urlToggle" name="pageToggle" aria-label="Toggle smart pause for this page" title="Enable or disable smart pause for this page" />
+      <span class="slider"></span>
+    </label>
+  </div>
 
-    <p class="note">If neither is selected, the extension will not auto-pause videos.</p>
+  <div class="status-row">
+    <span>Status:</span>
+    <span id="status">Checking...</span>
   </div>
 
   <script src="popup.js"></script>

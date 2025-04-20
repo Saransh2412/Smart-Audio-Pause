@@ -1,14 +1,17 @@
 {
   "manifest_version": 3,
   "name": "Smart Video Pause",
-  "version": "1.2.4",
+  "version": "1.2.9",
   "description": "Automatically pause videos when tab is inactive — or control manually.",
   "permissions": [
     "activeTab",
     "tabs",
-    "storage"
+    "storage",
+    "scripting"
   ],
-  "host_permissions": ["<all_urls>"],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -21,7 +24,7 @@
     {
       "matches": ["<all_urls>"],
       "js": ["content.js"],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ]
 }
